@@ -1,0 +1,5 @@
+-- Seed data for local development.
+-- Families/babies/feedings are owned by authenticated users created at runtime,
+-- so there is no static seed data to insert here. Sign up in the app to create
+-- your own family and babies. This file exists so `supabase start`/`db reset`
+-- has a seed target and to hold future seed data if needed.
