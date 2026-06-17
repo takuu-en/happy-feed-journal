@@ -36,6 +36,14 @@ export interface Baby {
   created_at: string;
 }
 
+export interface FeedingItem {
+  id?: string;
+  feeding_id?: string;
+  food: string;
+  amount: number | null;
+  unit: string;
+}
+
 export interface Feeding {
   id: string;
   baby_id: string;
@@ -43,11 +51,25 @@ export interface Feeding {
   food: string;
   amount: number | null;
   unit: string;
-  fed_at: string;
   notes: string;
   source: "voice" | "manual";
+  fed_at: string;
   created_by: string;
   created_at: string;
+  // Formula
+  brand: string;
+  scoops: number | null;
+  // Breast
+  left_duration_min: number | null;
+  right_duration_min: number | null;
+  // Solid / snack items (embedded via PostgREST)
+  feeding_items?: FeedingItem[];
+}
+
+export interface ParsedItem {
+  food: string;
+  amount: number | null;
+  unit: string;
 }
 
 export interface ParsedFeeding {
@@ -57,4 +79,9 @@ export interface ParsedFeeding {
   unit: string;
   fed_at: string | null;
   notes: string;
+  brand: string;
+  scoops: number | null;
+  left_duration_min: number | null;
+  right_duration_min: number | null;
+  items: ParsedItem[];
 }

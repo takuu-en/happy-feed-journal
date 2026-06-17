@@ -19,6 +19,37 @@ function kindEmoji(kind: string): string {
   return FEED_KINDS.find((k) => k.value === kind)?.emoji ?? "🍽️";
 }
 
+function summarize(f: Feeding): string {
+  if (f.kind === "breast") {
+    const parts: string[] = [];
+    if (f.left_duration_min != null) parts.push(`Left ${f.left_duration_min}m`);
+    if (f.right_duration_min != null)
+      parts.push(`Right ${f.right_duration_min}m`);
+    return parts.join(" · ") || "Breastfeeding";
+  }
+  if (f.kind === "formula") {
+    const parts: string[] = [];
+    if (f.brand) parts.push(f.brand);
+    if (f.scoops != null) parts.push(`${f.scoops} scoops`);
+    if (f.amount != null) parts.push(`${f.amount}${f.unit || "ml"}`);
+    return parts.join(" · ") || "Formula";
+  }
+  const its = f.feeding_items ?? [];
+  if (its.length > 0) {
+    return its
+      .map(
+        (it) =>
+          `${it.food}${it.amount != null ? ` ${it.amount}${it.unit}` : ""}`,
+      )
+      .join(", ");
+  }
+  return (
+    [f.food, f.amount != null ? `${f.amount}${f.unit}` : ""]
+      .filter(Boolean)
+      .join(" · ") || "—"
+  );
+}
+
 function formatTime(iso: string): string {
   return new Date(iso).toLocaleString(undefined, {
     month: "short",
@@ -70,7 +101,7 @@ export default function Dashboard() {
     setLoading(true);
     const { data, error } = await supabase
       .from("feedings")
-      .select("*")
+      .select("*, feeding_items(*)")
       .eq("baby_id", currentBaby.id)
       .order("fed_at", { ascending: false });
     if (!error) setFeedings((data as Feeding[]) ?? []);
@@ -334,16 +365,7 @@ export default function Dashboard() {
                         item.kind}
                       {item.source === "voice" ? "  🎙️" : ""}
                     </Text>
-                    <Text style={styles.entrySub}>
-                      {[
-                        item.food,
-                        item.amount != null
-                          ? `${item.amount}${item.unit}`
-                          : item.unit,
-                      ]
-                        .filter(Boolean)
-                        .join(" · ") || "—"}
-                    </Text>
+                    <Text style={styles.entrySub}>{summarize(item)}</Text>
                     {item.notes ? (
                       <Text style={styles.entryNotes}>“{item.notes}”</Text>
                     ) : null}

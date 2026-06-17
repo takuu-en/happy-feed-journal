@@ -66,14 +66,25 @@ async function extractStructured(transcript: string): Promise<unknown> {
   const nowIso = new Date().toISOString();
   const system =
     "You extract a single baby feeding event from a caregiver's note and " +
-    "return STRICT JSON. Fields: kind (one of breast|formula|solid|snack), " +
-    "food (short string, e.g. 'mashed banana' or '' for breast), amount " +
-    "(number or null), unit (e.g. 'ml','oz','g','min' or ''), fed_at (ISO " +
-    "8601 timestamp; resolve relative times against the provided current " +
-    "time, or null if unknown), notes (short string). Only output JSON.";
+    "return STRICT JSON. Fields:\n" +
+    "- kind: one of breast|formula|solid|snack\n" +
+    "- food: short string (e.g. 'mashed banana'; '' for breast)\n" +
+    "- amount: number or null (for formula/snack: total volume; null for breast/solid)\n" +
+    "- unit: e.g. 'ml','oz','g' or '' \n" +
+    "- fed_at: ISO 8601 timestamp; resolve relative times against the current " +
+    "time provided, or null if unknown\n" +
+    "- notes: short string\n" +
+    "- brand: formula brand name, or '' (formula only)\n" +
+    "- scoops: number of formula scoops, or null\n" +
+    "- left_duration_min: minutes on the left breast, or null (breast only)\n" +
+    "- right_duration_min: minutes on the right breast, or null (breast only)\n" +
+    "- items: for solid/snack meals, an array of {food, amount (number or " +
+    "null), unit ('g' or 'ml')} for EACH distinct food mentioned; [] otherwise\n" +
+    "Only output JSON.";
   const user =
     `Current time: ${nowIso}\nCaregiver note: "${transcript}"\n` +
-    `Return JSON with keys kind, food, amount, unit, fed_at, notes.`;
+    `Return JSON with keys kind, food, amount, unit, fed_at, notes, brand, ` +
+    `scoops, left_duration_min, right_duration_min, items.`;
 
   const res = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
@@ -99,18 +110,41 @@ async function extractStructured(transcript: string): Promise<unknown> {
   return JSON.parse(content);
 }
 
+function num(value: unknown): number | null {
+  if (value === null || value === undefined || value === "") return null;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
+}
+
 function normalize(raw: Record<string, unknown>) {
   const validKinds = ["breast", "formula", "solid", "snack"];
   let kind = String(raw.kind ?? "").toLowerCase();
   if (!validKinds.includes(kind)) kind = "solid";
-  const amountNum = Number(raw.amount);
+
+  const rawItems = Array.isArray(raw.items) ? raw.items : [];
+  const items = rawItems
+    .map((it) => {
+      const obj = (it ?? {}) as Record<string, unknown>;
+      return {
+        food: String(obj.food ?? "").trim(),
+        amount: num(obj.amount),
+        unit: String(obj.unit ?? "g").trim() || "g",
+      };
+    })
+    .filter((it) => it.food !== "");
+
   return {
     kind,
     food: String(raw.food ?? "").trim(),
-    amount: Number.isFinite(amountNum) && raw.amount !== null ? amountNum : null,
+    amount: num(raw.amount),
     unit: String(raw.unit ?? "").trim(),
     fed_at: raw.fed_at ? String(raw.fed_at) : null,
     notes: String(raw.notes ?? "").trim(),
+    brand: String(raw.brand ?? "").trim(),
+    scoops: num(raw.scoops),
+    left_duration_min: num(raw.left_duration_min),
+    right_duration_min: num(raw.right_duration_min),
+    items,
   };
 }
 
