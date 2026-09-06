@@ -33,6 +33,13 @@ Standard commands live in `package.json` (`web`, `ios`, `android`, `lint`) and
   do not remove that or Docker will fail to start.
 - iOS: a native iOS build needs macOS/Xcode and cannot be produced in this Linux
   VM. Test via the web target here; use Expo Go / EAS for on-device iOS/Android.
+  iOS UX concerns (safe-area insets, keyboard avoidance, status bar, autofill,
+  decimal keypads) live in the screens under `src/app/`; verify layout changes at
+  an iPhone viewport on web (Chrome device toolbar) since the simulator is
+  unavailable here.
+- On-device iOS/Android cannot reach `127.0.0.1`; point
+  `EXPO_PUBLIC_SUPABASE_URL` at a LAN IP or hosted project (the Simulator can use
+  localhost). iOS bundle id: `com.happyfeed.journal`.
 
 ### Voice / AI (parse-feeding) function
 - It needs `OPENAI_API_KEY`. Export it BEFORE `supabase start` so the local Edge

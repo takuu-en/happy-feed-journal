@@ -1,6 +1,8 @@
 import { useRouter } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
 import {
+  KeyboardAvoidingView,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -8,13 +10,14 @@ import {
   TextInput,
   View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useApp } from "@/context/app-context";
 import { supabase } from "@/lib/supabase";
 import type { Baby, FamilyMember } from "@/lib/types";
 
 export default function FamilyScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { currentFamily, babies, refreshBabies, refreshFamilies, session } =
     useApp();
 
@@ -57,10 +60,21 @@ export default function FamilyScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.safe}>
-      <ScrollView contentContainerStyle={styles.container}>
-        <View style={styles.headerRow}>
-          <Text style={styles.title}>{currentFamily.name}</Text>
+    <SafeAreaView style={styles.safe} edges={["bottom"]}>
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+      >
+        <ScrollView
+          contentContainerStyle={[
+            styles.container,
+            { paddingBottom: insets.bottom + 32 },
+          ]}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="interactive"
+        >
+          <View style={styles.headerRow}>
+            <Text style={styles.title}>{currentFamily.name}</Text>
           <Pressable onPress={() => router.back()} style={styles.close}>
             <Text style={styles.closeText}>✕</Text>
           </Pressable>
@@ -132,7 +146,8 @@ export default function FamilyScreen() {
         >
           <Text style={styles.doneBtnText}>Done</Text>
         </Pressable>
-      </ScrollView>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }

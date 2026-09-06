@@ -53,6 +53,20 @@ supabase start                # or `supabase stop && supabase start` if running
 
 Without a key the function returns HTTP 501 and the app falls back to manual entry.
 
+## Running on iOS
+
+- iOS Simulator (needs macOS + Xcode): `npm run ios`. `localhost` from the
+  simulator reaches your Mac, so the default `.env` (127.0.0.1) works.
+- Physical iPhone via Expo Go: `npx expo start`, then scan the QR code. A device
+  cannot reach `127.0.0.1` — point `EXPO_PUBLIC_SUPABASE_URL` at your machine's
+  LAN IP (e.g. `http://192.168.1.20:54321`) or a hosted Supabase project.
+- Standalone build: `eas build -p ios` (requires an Expo account + Apple
+  credentials). The iOS bundle id is `com.happyfeed.journal` (see `app.json`).
+
+The UI is built for iOS: safe-area insets (notch / Dynamic Island / home
+indicator), keyboard-avoiding forms, dark status bar, iOS autofill hints, and
+decimal keypads for amounts.
+
 ## Scripts
 
 | Command         | Description                          |
