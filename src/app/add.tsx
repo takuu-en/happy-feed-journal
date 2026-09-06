@@ -22,6 +22,14 @@ import { guessAudioMime, uriToBase64 } from "@/lib/audio";
 import { supabase } from "@/lib/supabase";
 import { FEED_KINDS, type FeedKind, type ParsedFeeding } from "@/lib/types";
 
+interface ItemRow {
+  food: string;
+  amount: string;
+  unit: string;
+}
+
+const emptyItem = (): ItemRow => ({ food: "", amount: "", unit: "g" });
+
 export default function AddFeeding() {
   const router = useRouter();
   const { currentBaby, session } = useApp();
@@ -34,19 +42,64 @@ export default function AddFeeding() {
   const [error, setError] = useState<string | null>(null);
   const [usedAi, setUsedAi] = useState(false);
 
-  // Structured fields.
   const [kind, setKind] = useState<FeedKind>("formula");
-  const [food, setFood] = useState("");
-  const [amount, setAmount] = useState("");
-  const [unit, setUnit] = useState("ml");
   const [notes, setNotes] = useState("");
+
+  // Breast
+  const [leftMin, setLeftMin] = useState("");
+  const [rightMin, setRightMin] = useState("");
+  // Formula
+  const [brand, setBrand] = useState("");
+  const [scoops, setScoops] = useState("");
+  const [formulaMl, setFormulaMl] = useState("");
+  // Solid / snack
+  const [items, setItems] = useState<ItemRow[]>([emptyItem()]);
+
+  function updateItem(index: number, patch: Partial<ItemRow>) {
+    setItems((prev) =>
+      prev.map((it, i) => (i === index ? { ...it, ...patch } : it)),
+    );
+  }
+  function addItem() {
+    setItems((prev) => [...prev, emptyItem()]);
+  }
+  function removeItem(index: number) {
+    setItems((prev) =>
+      prev.length === 1 ? prev : prev.filter((_, i) => i !== index),
+    );
+  }
 
   function applyParsed(p: ParsedFeeding) {
     setKind(p.kind);
-    setFood(p.food ?? "");
-    setAmount(p.amount != null ? String(p.amount) : "");
-    setUnit(p.unit ?? "");
     setNotes(p.notes ?? "");
+    setLeftMin(p.left_duration_min != null ? String(p.left_duration_min) : "");
+    setRightMin(
+      p.right_duration_min != null ? String(p.right_duration_min) : "",
+    );
+    setBrand(p.brand ?? "");
+    setScoops(p.scoops != null ? String(p.scoops) : "");
+    if (p.kind === "formula") {
+      setFormulaMl(p.amount != null ? String(p.amount) : "");
+    }
+    if (p.kind === "solid" || p.kind === "snack") {
+      const parsedItems =
+        p.items && p.items.length > 0
+          ? p.items.map((it) => ({
+              food: it.food,
+              amount: it.amount != null ? String(it.amount) : "",
+              unit: it.unit || "g",
+            }))
+          : p.food
+            ? [
+                {
+                  food: p.food,
+                  amount: p.amount != null ? String(p.amount) : "",
+                  unit: p.unit || "g",
+                },
+              ]
+            : [emptyItem()];
+      setItems(parsedItems);
+    }
     setUsedAi(true);
   }
 
@@ -62,9 +115,7 @@ export default function AddFeeding() {
       if (data?.transcript && !transcript) setTranscript(data.transcript);
       if (data?.parsed) applyParsed(data.parsed as ParsedFeeding);
     } catch (e) {
-      setError(
-        e instanceof Error ? e.message : "Could not parse the feeding.",
-      );
+      setError(e instanceof Error ? e.message : "Could not parse the feeding.");
     } finally {
       setParsing(false);
     }
@@ -112,17 +163,43 @@ export default function AddFeeding() {
     if (!currentBaby || !session) return;
     setSaving(true);
     setError(null);
-    const amountNum = amount.trim() === "" ? null : Number(amount);
-    const { error } = await supabase.from("feedings").insert({
-      baby_id: currentBaby.id,
-      kind,
-      food: food.trim(),
-      amount: Number.isFinite(amountNum as number) ? amountNum : null,
-      unit: unit.trim(),
-      notes: notes.trim(),
-      source: usedAi ? "voice" : "manual",
-      created_by: session.user.id,
-    });
+
+    const num = (s: string) => (s.trim() === "" ? null : Number(s));
+    const payload: Record<string, unknown> = {
+      _baby_id: currentBaby.id,
+      _kind: kind,
+      _notes: notes.trim(),
+      _source: usedAi ? "voice" : "manual",
+    };
+
+    if (kind === "breast") {
+      payload._left_duration_min = num(leftMin);
+      payload._right_duration_min = num(rightMin);
+    } else if (kind === "formula") {
+      payload._brand = brand.trim();
+      payload._scoops = num(scoops);
+      payload._amount = num(formulaMl);
+      payload._unit = "ml";
+      payload._food = brand.trim() || "Formula";
+    } else {
+      // solid / snack
+      const cleanItems = items
+        .map((it) => ({
+          food: it.food.trim(),
+          amount: it.amount.trim() === "" ? null : Number(it.amount),
+          unit: it.unit || "g",
+        }))
+        .filter((it) => it.food !== "");
+      if (cleanItems.length === 0) {
+        setSaving(false);
+        setError("Add at least one food item.");
+        return;
+      }
+      payload._items = cleanItems;
+      payload._food = cleanItems.map((it) => it.food).join(", ");
+    }
+
+    const { error } = await supabase.rpc("create_feeding", payload);
     setSaving(false);
     if (error) {
       setError(error.message);
@@ -148,7 +225,8 @@ export default function AddFeeding() {
         <View style={styles.card}>
           <Text style={styles.sectionTitle}>🎙️ Speak or type</Text>
           <Text style={styles.hint}>
-            e.g. “Gave Mia 120ml of formula 10 minutes ago, she was happy”
+            e.g. “Breakfast: 50g banana and 30g rice cereal” or “Left breast 10
+            min, right 8 min” or “Brand Hipp formula, 3 scoops, 150ml”
           </Text>
           <TextInput
             placeholder="Describe the feeding..."
@@ -161,10 +239,7 @@ export default function AddFeeding() {
           <View style={styles.row}>
             <Pressable
               onPress={toggleRecording}
-              style={[
-                styles.recordBtn,
-                recording && styles.recordBtnActive,
-              ]}
+              style={[styles.recordBtn, recording && styles.recordBtnActive]}
             >
               <Text style={styles.recordBtnText}>
                 {recording
@@ -193,10 +268,9 @@ export default function AddFeeding() {
           )}
         </View>
 
-        {/* Structured form */}
+        {/* Kind selector */}
         <View style={styles.card}>
-          <Text style={styles.sectionTitle}>Details</Text>
-          <Text style={styles.label}>Type</Text>
+          <Text style={styles.sectionTitle}>Type</Text>
           <View style={styles.kinds}>
             {FEED_KINDS.map((k) => (
               <Pressable
@@ -215,40 +289,138 @@ export default function AddFeeding() {
               </Pressable>
             ))}
           </View>
+        </View>
 
-          <Text style={styles.label}>Food</Text>
-          <TextInput
-            placeholder="e.g. Formula, mashed banana"
-            placeholderTextColor="#9ca3af"
-            value={food}
-            onChangeText={setFood}
-            style={styles.input}
-          />
-
-          <View style={styles.row}>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.label}>Amount</Text>
-              <TextInput
-                placeholder="120"
-                placeholderTextColor="#9ca3af"
-                value={amount}
-                onChangeText={setAmount}
-                keyboardType="numeric"
-                style={styles.input}
-              />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.label}>Unit</Text>
-              <TextInput
-                placeholder="ml / oz / g / min"
-                placeholderTextColor="#9ca3af"
-                value={unit}
-                onChangeText={setUnit}
-                style={styles.input}
-              />
+        {/* Breast */}
+        {kind === "breast" && (
+          <View style={styles.card}>
+            <Text style={styles.sectionTitle}>Breastfeeding duration</Text>
+            <View style={styles.row}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.label}>Left (min)</Text>
+                <TextInput
+                  placeholder="10"
+                  placeholderTextColor="#9ca3af"
+                  value={leftMin}
+                  onChangeText={setLeftMin}
+                  keyboardType="numeric"
+                  style={styles.input}
+                />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.label}>Right (min)</Text>
+                <TextInput
+                  placeholder="8"
+                  placeholderTextColor="#9ca3af"
+                  value={rightMin}
+                  onChangeText={setRightMin}
+                  keyboardType="numeric"
+                  style={styles.input}
+                />
+              </View>
             </View>
           </View>
+        )}
 
+        {/* Formula */}
+        {kind === "formula" && (
+          <View style={styles.card}>
+            <Text style={styles.sectionTitle}>Formula details</Text>
+            <Text style={styles.label}>Brand</Text>
+            <TextInput
+              placeholder="e.g. HiPP, Similac"
+              placeholderTextColor="#9ca3af"
+              value={brand}
+              onChangeText={setBrand}
+              style={styles.input}
+            />
+            <View style={styles.row}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.label}>Scoops</Text>
+                <TextInput
+                  placeholder="3"
+                  placeholderTextColor="#9ca3af"
+                  value={scoops}
+                  onChangeText={setScoops}
+                  keyboardType="numeric"
+                  style={styles.input}
+                />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.label}>Amount (ml)</Text>
+                <TextInput
+                  placeholder="150"
+                  placeholderTextColor="#9ca3af"
+                  value={formulaMl}
+                  onChangeText={setFormulaMl}
+                  keyboardType="numeric"
+                  style={styles.input}
+                />
+              </View>
+            </View>
+          </View>
+        )}
+
+        {/* Solid / snack items */}
+        {(kind === "solid" || kind === "snack") && (
+          <View style={styles.card}>
+            <Text style={styles.sectionTitle}>Foods in this meal</Text>
+            {items.map((it, index) => (
+              <View key={index} style={styles.itemRow}>
+                <TextInput
+                  placeholder="Food (e.g. mashed banana)"
+                  placeholderTextColor="#9ca3af"
+                  value={it.food}
+                  onChangeText={(t) => updateItem(index, { food: t })}
+                  style={[styles.input, { flex: 2 }]}
+                />
+                <TextInput
+                  placeholder="50"
+                  placeholderTextColor="#9ca3af"
+                  value={it.amount}
+                  onChangeText={(t) => updateItem(index, { amount: t })}
+                  keyboardType="numeric"
+                  style={[styles.input, { flex: 1 }]}
+                />
+                <View style={styles.unitToggle}>
+                  {["g", "ml"].map((u) => (
+                    <Pressable
+                      key={u}
+                      onPress={() => updateItem(index, { unit: u })}
+                      style={[
+                        styles.unitBtn,
+                        it.unit === u && styles.unitBtnActive,
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.unitBtnText,
+                          it.unit === u && styles.unitBtnTextActive,
+                        ]}
+                      >
+                        {u}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </View>
+                {items.length > 1 && (
+                  <Pressable
+                    onPress={() => removeItem(index)}
+                    style={styles.removeItem}
+                  >
+                    <Text style={styles.removeItemText}>✕</Text>
+                  </Pressable>
+                )}
+              </View>
+            ))}
+            <Pressable onPress={addItem} style={styles.addItemBtn}>
+              <Text style={styles.addItemText}>＋ Add another food</Text>
+            </Pressable>
+          </View>
+        )}
+
+        {/* Notes */}
+        <View style={styles.card}>
           <Text style={styles.label}>Notes</Text>
           <TextInput
             placeholder="Anything to remember?"
@@ -338,6 +510,31 @@ const styles = StyleSheet.create({
   kindActive: { backgroundColor: "#e11d48" },
   kindText: { color: "#e11d48", fontWeight: "600" },
   kindTextActive: { color: "#fff" },
+  itemRow: { flexDirection: "row", gap: 6, alignItems: "center" },
+  unitToggle: {
+    flexDirection: "row",
+    backgroundColor: "#fef2f2",
+    borderRadius: 10,
+    padding: 3,
+  },
+  unitBtn: {
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  unitBtnActive: { backgroundColor: "#e11d48" },
+  unitBtnText: { color: "#e11d48", fontWeight: "700", fontSize: 13 },
+  unitBtnTextActive: { color: "#fff" },
+  removeItem: { padding: 6 },
+  removeItemText: { color: "#9ca3af", fontSize: 16 },
+  addItemBtn: {
+    backgroundColor: "#fef2f2",
+    borderRadius: 12,
+    paddingVertical: 11,
+    alignItems: "center",
+    marginTop: 4,
+  },
+  addItemText: { color: "#e11d48", fontWeight: "700" },
   error: { color: "#dc2626", fontSize: 14 },
   saveBtn: {
     backgroundColor: "#e11d48",
