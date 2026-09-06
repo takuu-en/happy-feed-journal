@@ -8,6 +8,7 @@ import { useRouter } from "expo-router";
 import { useState } from "react";
 import {
   ActivityIndicator,
+  KeyboardAvoidingView,
   Platform,
   Pressable,
   ScrollView,
@@ -16,7 +17,7 @@ import {
   TextInput,
   View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useApp } from "@/context/app-context";
 import { guessAudioMime, uriToBase64 } from "@/lib/audio";
 import { supabase } from "@/lib/supabase";
@@ -32,6 +33,7 @@ const emptyItem = (): ItemRow => ({ food: "", amount: "", unit: "g" });
 
 export default function AddFeeding() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { currentBaby, session } = useApp();
   const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
 
@@ -209,10 +211,21 @@ export default function AddFeeding() {
   }
 
   return (
-    <SafeAreaView style={styles.safe}>
-      <ScrollView contentContainerStyle={styles.container}>
-        <View style={styles.headerRow}>
-          <Text style={styles.title}>Log a feeding</Text>
+    <SafeAreaView style={styles.safe} edges={["bottom"]}>
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+      >
+        <ScrollView
+          contentContainerStyle={[
+            styles.container,
+            { paddingBottom: insets.bottom + 32 },
+          ]}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="interactive"
+        >
+          <View style={styles.headerRow}>
+            <Text style={styles.title}>Log a feeding</Text>
           <Pressable onPress={() => router.back()} style={styles.close}>
             <Text style={styles.closeText}>✕</Text>
           </Pressable>
@@ -303,7 +316,7 @@ export default function AddFeeding() {
                   placeholderTextColor="#9ca3af"
                   value={leftMin}
                   onChangeText={setLeftMin}
-                  keyboardType="numeric"
+                  keyboardType="decimal-pad"
                   style={styles.input}
                 />
               </View>
@@ -314,7 +327,7 @@ export default function AddFeeding() {
                   placeholderTextColor="#9ca3af"
                   value={rightMin}
                   onChangeText={setRightMin}
-                  keyboardType="numeric"
+                  keyboardType="decimal-pad"
                   style={styles.input}
                 />
               </View>
@@ -342,7 +355,7 @@ export default function AddFeeding() {
                   placeholderTextColor="#9ca3af"
                   value={scoops}
                   onChangeText={setScoops}
-                  keyboardType="numeric"
+                  keyboardType="decimal-pad"
                   style={styles.input}
                 />
               </View>
@@ -353,7 +366,7 @@ export default function AddFeeding() {
                   placeholderTextColor="#9ca3af"
                   value={formulaMl}
                   onChangeText={setFormulaMl}
-                  keyboardType="numeric"
+                  keyboardType="decimal-pad"
                   style={styles.input}
                 />
               </View>
@@ -379,7 +392,7 @@ export default function AddFeeding() {
                   placeholderTextColor="#9ca3af"
                   value={it.amount}
                   onChangeText={(t) => updateItem(index, { amount: t })}
-                  keyboardType="numeric"
+                  keyboardType="decimal-pad"
                   style={[styles.input, { flex: 1 }]}
                 />
                 <View style={styles.unitToggle}>
@@ -444,7 +457,8 @@ export default function AddFeeding() {
             <Text style={styles.saveBtnText}>Save to journal</Text>
           )}
         </Pressable>
-      </ScrollView>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }

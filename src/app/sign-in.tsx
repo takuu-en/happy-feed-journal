@@ -56,7 +56,10 @@ export default function SignIn() {
         behavior={Platform.OS === "ios" ? "padding" : undefined}
         style={{ flex: 1 }}
       >
-        <ScrollView contentContainerStyle={styles.container}>
+        <ScrollView
+          contentContainerStyle={styles.container}
+          keyboardShouldPersistTaps="handled"
+        >
           <Text style={styles.logo}>🍼</Text>
           <Text style={styles.title}>Happy Feed Journal</Text>
           <Text style={styles.subtitle}>
@@ -101,6 +104,9 @@ export default function SignIn() {
                 onChangeText={setDisplayName}
                 style={styles.input}
                 autoCapitalize="words"
+                autoComplete="name"
+                textContentType="name"
+                returnKeyType="next"
               />
             )}
             <TextInput
@@ -110,8 +116,11 @@ export default function SignIn() {
               onChangeText={setEmail}
               style={styles.input}
               autoCapitalize="none"
+              autoCorrect={false}
               keyboardType="email-address"
               autoComplete="email"
+              textContentType="emailAddress"
+              returnKeyType="next"
             />
             <TextInput
               placeholder="Password"
@@ -120,6 +129,10 @@ export default function SignIn() {
               onChangeText={setPassword}
               style={styles.input}
               secureTextEntry
+              autoComplete={mode === "signUp" ? "new-password" : "current-password"}
+              textContentType={mode === "signUp" ? "newPassword" : "password"}
+              returnKeyType="go"
+              onSubmitEditing={submit}
             />
 
             {error && <Text style={styles.error}>{error}</Text>}
