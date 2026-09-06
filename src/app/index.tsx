@@ -3,14 +3,17 @@ import { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
+  KeyboardAvoidingView,
+  Platform,
   Pressable,
   RefreshControl,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
   View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useApp } from "@/context/app-context";
 import { supabase } from "@/lib/supabase";
 import { FEED_KINDS, type Feeding } from "@/lib/types";
@@ -71,6 +74,7 @@ function isToday(iso: string): boolean {
 
 export default function Dashboard() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const {
     session,
     families,
@@ -179,10 +183,17 @@ export default function Dashboard() {
   // --- Onboarding: no family yet ---
   if (families.length === 0) {
     return (
-      <SafeAreaView style={styles.safe}>
-        <View style={styles.onboard}>
-          <Text style={styles.logo}>👨‍👩‍👧</Text>
-          <Text style={styles.h1}>Start a family</Text>
+      <SafeAreaView style={styles.safe} edges={["top", "bottom"]}>
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
+        >
+          <ScrollView
+            contentContainerStyle={styles.onboard}
+            keyboardShouldPersistTaps="handled"
+          >
+            <Text style={styles.logo}>👨‍👩‍👧</Text>
+            <Text style={styles.h1}>Start a family</Text>
           <Text style={styles.muted}>
             Create a family to track your babies together, or join one with an
             invite code.
@@ -222,10 +233,13 @@ export default function Dashboard() {
               <Text style={styles.secondaryBtnText}>Join family</Text>
             </Pressable>
           </View>
-          <Pressable onPress={signOut} style={styles.signOut}>
-            <Text style={styles.signOutText}>Sign out ({session?.user.email})</Text>
-          </Pressable>
-        </View>
+            <Pressable onPress={signOut} style={styles.signOut}>
+              <Text style={styles.signOutText}>
+                Sign out ({session?.user.email})
+              </Text>
+            </Pressable>
+          </ScrollView>
+        </KeyboardAvoidingView>
       </SafeAreaView>
     );
   }
@@ -343,7 +357,7 @@ export default function Dashboard() {
             <FlatList
               data={feedings}
               keyExtractor={(item) => item.id}
-              contentContainerStyle={{ paddingBottom: 40 }}
+              contentContainerStyle={{ paddingBottom: insets.bottom + 40 }}
               refreshControl={
                 <RefreshControl
                   refreshing={loading}
@@ -391,7 +405,7 @@ export default function Dashboard() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: "#fff7ed", paddingHorizontal: 16 },
-  onboard: { flex: 1, justifyContent: "center", gap: 12, padding: 8 },
+  onboard: { flexGrow: 1, justifyContent: "center", gap: 12, padding: 8 },
   logo: { fontSize: 48, textAlign: "center" },
   h1: {
     fontSize: 24,

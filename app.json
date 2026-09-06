@@ -9,11 +9,15 @@
     "userInterfaceStyle": "automatic",
     "ios": {
       "supportsTablet": true,
+      "bundleIdentifier": "com.happyfeed.journal",
+      "buildNumber": "1",
       "infoPlist": {
-        "NSMicrophoneUsageDescription": "Happy Feed Journal uses the microphone so you can log feedings by voice."
+        "NSMicrophoneUsageDescription": "Happy Feed Journal uses the microphone so you can log feedings by voice.",
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
+      "package": "com.happyfeed.journal",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
